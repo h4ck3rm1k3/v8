@@ -186,7 +186,6 @@ if [ $START_STEP -le $CURRENT_STEP ] ; then
   if [ -n "$EXTRA_PATCH" ] ; then
     apply_patch "$EXTRA_PATCH"
   fi
-  stage_files
 fi
 
 let CURRENT_STEP+=1
@@ -230,7 +229,8 @@ if [ $START_STEP -le $CURRENT_STEP ] ; then
   git checkout $BRANCHNAME \
     || die "cannot ensure that the current branch is $BRANCHNAME"
   wait_for_lgtm
-  git cl dcommit || die "failed to commit to $MERGE_TO_BRANCH"
+  PRESUBMIT_TREE_CHECK="skip" git cl dcommit \
+    || die "failed to commit to $MERGE_TO_BRANCH"
 fi
 
 let CURRENT_STEP+=1

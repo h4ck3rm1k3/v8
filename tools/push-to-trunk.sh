@@ -211,7 +211,8 @@ if [ $START_STEP -le $CURRENT_STEP ] ; then
     };
     print $0;
   }' > "$CHANGELOG_ENTRY_FILE"
-  git cl dcommit || die "'git cl dcommit' failed, please try again."
+  PRESUBMIT_TREE_CHECK="skip" git cl dcommit \
+    || die "'git cl dcommit' failed, please try again."
 fi
 
 let CURRENT_STEP+=1
@@ -268,7 +269,6 @@ if [ $START_STEP -le $CURRENT_STEP ] ; then
   echo ">>> Step $CURRENT_STEP: Apply squashed changes."
   rm -f "$TOUCHED_FILES_FILE"
   apply_patch "$PATCH_FILE"
-  stage_files
   rm -f "$PATCH_FILE"
 fi
 

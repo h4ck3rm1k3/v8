@@ -25,6 +25,9 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// This file relies on the fact that the following declarations have been made
+// in runtime.js:
+// var $Object = global.Object;
 
 // Keep reference to original values of some global properties.  This
 // has the added benefit that the code in this file is isolated from
@@ -35,67 +38,58 @@ var $abs = MathAbs;
 // Instance class name can only be set on functions. That is the only
 // purpose for MathConstructor.
 function MathConstructor() {}
-%FunctionSetInstanceClassName(MathConstructor, 'Math');
 var $Math = new MathConstructor();
-$Math.__proto__ = $Object.prototype;
-%SetProperty(global, "Math", $Math, DONT_ENUM);
+
+// -------------------------------------------------------------------
 
 // ECMA 262 - 15.8.2.1
 function MathAbs(x) {
   if (%_IsSmi(x)) return x >= 0 ? x : -x;
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
+  x = TO_NUMBER_INLINE(x);
   if (x === 0) return 0;  // To handle -0.
   return x > 0 ? x : -x;
 }
 
 // ECMA 262 - 15.8.2.2
 function MathAcos(x) {
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
-  return %Math_acos(x);
+  return %Math_acos(TO_NUMBER_INLINE(x));
 }
 
 // ECMA 262 - 15.8.2.3
 function MathAsin(x) {
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
-  return %Math_asin(x);
+  return %Math_asin(TO_NUMBER_INLINE(x));
 }
 
 // ECMA 262 - 15.8.2.4
 function MathAtan(x) {
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
-  return %Math_atan(x);
+  return %Math_atan(TO_NUMBER_INLINE(x));
 }
 
 // ECMA 262 - 15.8.2.5
 // The naming of y and x matches the spec, as does the order in which
 // ToNumber (valueOf) is called.
 function MathAtan2(y, x) {
-  if (!IS_NUMBER(y)) y = NonNumberToNumber(y);
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
-  return %Math_atan2(y, x);
+  return %Math_atan2(TO_NUMBER_INLINE(y), TO_NUMBER_INLINE(x));
 }
 
 // ECMA 262 - 15.8.2.6
 function MathCeil(x) {
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
-  return %Math_ceil(x);
+  return %Math_ceil(TO_NUMBER_INLINE(x));
 }
 
 // ECMA 262 - 15.8.2.7
 function MathCos(x) {
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
-  return %_MathCos(x);
+  return MathCosImpl(x);
 }
 
 // ECMA 262 - 15.8.2.8
 function MathExp(x) {
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
-  return %Math_exp(x);
+  return %Math_exp(TO_NUMBER_INLINE(x));
 }
 
 // ECMA 262 - 15.8.2.9
 function MathFloor(x) {
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
+  x = TO_NUMBER_INLINE(x);
   // It's more common to call this with a positive number that's out
   // of range than negative numbers; check the upper bound first.
   if (x < 0x80000000 && x > 0) {
@@ -111,39 +105,32 @@ function MathFloor(x) {
 
 // ECMA 262 - 15.8.2.10
 function MathLog(x) {
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
-  return %_MathLog(x);
+  return %_MathLog(TO_NUMBER_INLINE(x));
 }
 
 // ECMA 262 - 15.8.2.11
 function MathMax(arg1, arg2) {  // length == 2
   var length = %_ArgumentsLength();
   if (length == 2) {
-    if (!IS_NUMBER(arg1)) arg1 = NonNumberToNumber(arg1);
-    if (!IS_NUMBER(arg2)) arg2 = NonNumberToNumber(arg2);
+    arg1 = TO_NUMBER_INLINE(arg1);
+    arg2 = TO_NUMBER_INLINE(arg2);
     if (arg2 > arg1) return arg2;
     if (arg1 > arg2) return arg1;
     if (arg1 == arg2) {
-      // Make sure -0 is considered less than +0.  -0 is never a Smi, +0 can be
-      // a Smi or a heap number.
-      return (arg1 == 0 && !%_IsSmi(arg1) && 1 / arg1 < 0) ? arg2 : arg1;
+      // Make sure -0 is considered less than +0.
+      return (arg1 === 0 && %_IsMinusZero(arg1)) ? arg2 : arg1;
     }
     // All comparisons failed, one of the arguments must be NaN.
-    return 0/0;  // Compiler constant-folds this to NaN.
+    return NAN;
   }
-  if (length == 0) {
-    return -1/0;  // Compiler constant-folds this to -Infinity.
-  }
-  var r = arg1;
-  if (!IS_NUMBER(r)) r = NonNumberToNumber(r);
-  if (NUMBER_IS_NAN(r)) return r;
-  for (var i = 1; i < length; i++) {
+  var r = -INFINITY;
+  for (var i = 0; i < length; i++) {
     var n = %_Arguments(i);
     if (!IS_NUMBER(n)) n = NonNumberToNumber(n);
-    if (NUMBER_IS_NAN(n)) return n;
-    // Make sure +0 is considered greater than -0.  -0 is never a Smi, +0 can be
-    // a Smi or heap number.
-    if (n > r || (r == 0 && n == 0 && !%_IsSmi(r) && 1 / r < 0)) r = n;
+    // Make sure +0 is considered greater than -0.
+    if (NUMBER_IS_NAN(n) || n > r || (r === 0 && n === 0 && %_IsMinusZero(r))) {
+      r = n;
+    }
   }
   return r;
 }
@@ -152,40 +139,32 @@ function MathMax(arg1, arg2) {  // length == 2
 function MathMin(arg1, arg2) {  // length == 2
   var length = %_ArgumentsLength();
   if (length == 2) {
-    if (!IS_NUMBER(arg1)) arg1 = NonNumberToNumber(arg1);
-    if (!IS_NUMBER(arg2)) arg2 = NonNumberToNumber(arg2);
+    arg1 = TO_NUMBER_INLINE(arg1);
+    arg2 = TO_NUMBER_INLINE(arg2);
     if (arg2 > arg1) return arg1;
     if (arg1 > arg2) return arg2;
     if (arg1 == arg2) {
-      // Make sure -0 is considered less than +0.  -0 is never a Smi, +0 can be
-      // a Smi or a heap number.
-      return (arg1 == 0 && !%_IsSmi(arg1) && 1 / arg1 < 0) ? arg1 : arg2;
+      // Make sure -0 is considered less than +0.
+      return (arg1 === 0 && %_IsMinusZero(arg1)) ? arg1 : arg2;
     }
     // All comparisons failed, one of the arguments must be NaN.
-    return 0/0;  // Compiler constant-folds this to NaN.
+    return NAN;
   }
-  if (length == 0) {
-    return 1/0;  // Compiler constant-folds this to Infinity.
-  }
-  var r = arg1;
-  if (!IS_NUMBER(r)) r = NonNumberToNumber(r);
-  if (NUMBER_IS_NAN(r)) return r;
-  for (var i = 1; i < length; i++) {
+  var r = INFINITY;
+  for (var i = 0; i < length; i++) {
     var n = %_Arguments(i);
     if (!IS_NUMBER(n)) n = NonNumberToNumber(n);
-    if (NUMBER_IS_NAN(n)) return n;
-    // Make sure -0 is considered less than +0.  -0 is never a Smi, +0 can be a
-    // Smi or a heap number.
-    if (n < r || (r == 0 && n == 0 && !%_IsSmi(n) && 1 / n < 0)) r = n;
+    // Make sure -0 is considered less than +0.
+    if (NUMBER_IS_NAN(n) || n < r || (r === 0 && n === 0 && %_IsMinusZero(n))) {
+      r = n;
+    }
   }
   return r;
 }
 
 // ECMA 262 - 15.8.2.13
 function MathPow(x, y) {
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
-  if (!IS_NUMBER(y)) y = NonNumberToNumber(y);
-  return %_MathPow(x, y);
+  return %_MathPow(TO_NUMBER_INLINE(x), TO_NUMBER_INLINE(y));
 }
 
 // ECMA 262 - 15.8.2.14
@@ -195,33 +174,130 @@ function MathRandom() {
 
 // ECMA 262 - 15.8.2.15
 function MathRound(x) {
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
-  return %RoundNumber(x);
+  return %RoundNumber(TO_NUMBER_INLINE(x));
 }
 
 // ECMA 262 - 15.8.2.16
 function MathSin(x) {
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
-  return %_MathSin(x);
+  return MathSinImpl(x);
 }
 
 // ECMA 262 - 15.8.2.17
 function MathSqrt(x) {
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
-  return %_MathSqrt(x);
+  return %_MathSqrt(TO_NUMBER_INLINE(x));
 }
 
 // ECMA 262 - 15.8.2.18
 function MathTan(x) {
-  if (!IS_NUMBER(x)) x = NonNumberToNumber(x);
-  return %_MathTan(x);
+  return MathSinImpl(x) / MathCosImpl(x);
 }
+
+// Non-standard extension.
+function MathImul(x, y) {
+  return %NumberImul(TO_NUMBER_INLINE(x), TO_NUMBER_INLINE(y));
+}
+
+
+var MathSinImpl = function(x) {
+  InitTrigonometricFunctions();
+  return MathSinImpl(x);
+}
+
+
+var MathCosImpl = function(x) {
+  InitTrigonometricFunctions();
+  return MathCosImpl(x);
+}
+
+
+var InitTrigonometricFunctions;
+
+
+// Define constants and interpolation functions.
+// Also define the initialization function that populates the lookup table
+// and then wires up the function definitions.
+function SetupTrigonometricFunctions() {
+  // TODO(yangguo): The following table size has been chosen to satisfy
+  // Sunspider's brittle result verification.  Reconsider relevance.
+  var samples = 4489;
+  var pi = 3.1415926535897932;
+  var pi_half = pi / 2;
+  var inverse_pi_half = 2 / pi;
+  var two_pi = 2 * pi;
+  var four_pi = 4 * pi;
+  var interval = pi_half / samples;
+  var inverse_interval = samples / pi_half;
+  var table_sin;
+  var table_cos_interval;
+
+  // This implements sine using the following algorithm.
+  // 1) Multiplication takes care of to-number conversion.
+  // 2) Reduce x to the first quadrant [0, pi/2].
+  //    Conveniently enough, in case of +/-Infinity, we get NaN.
+  // 3) Replace x by (pi/2-x) if x was in the 2nd or 4th quadrant.
+  // 4) Do a table lookup for the closest samples to the left and right of x.
+  // 5) Find the derivatives at those sampling points by table lookup:
+  //    dsin(x)/dx = cos(x) = sin(pi/2-x) for x in [0, pi/2].
+  // 6) Use cubic spline interpolation to approximate sin(x).
+  // 7) Negate the result if x was in the 3rd or 4th quadrant.
+  // 8) Get rid of -0 by adding 0.
+  var Interpolation = function(x) {
+    var double_index = x * inverse_interval;
+    var index = double_index | 0;
+    var t1 = double_index - index;
+    var t2 = 1 - t1;
+    var y1 = table_sin[index];
+    var y2 = table_sin[index + 1];
+    var dy = y2 - y1;
+    return (t2 * y1 + t1 * y2 +
+                t1 * t2 * ((table_cos_interval[index] - dy) * t2 +
+                           (dy - table_cos_interval[index + 1]) * t1));
+  }
+
+  var MathSinInterpolation = function(x) {
+    // This is to make Sunspider's result verification happy.
+    if (x > four_pi) x -= four_pi;
+    var multiple = MathFloor(x * inverse_pi_half);
+    if (%_IsMinusZero(multiple)) return multiple;
+    x = (multiple & 1) * pi_half +
+        (1 - ((multiple & 1) << 1)) * (x - multiple * pi_half);
+    return Interpolation(x) * (1 - (multiple & 2)) + 0;
+  }
+
+  // Cosine is sine with a phase offset of pi/2.
+  var MathCosInterpolation = function(x) {
+    var multiple = MathFloor(x * inverse_pi_half);
+    var phase = multiple + 1;
+    x = (phase & 1) * pi_half +
+        (1 - ((phase & 1) << 1)) * (x - multiple * pi_half);
+    return Interpolation(x) * (1 - (phase & 2)) + 0;
+  };
+
+  %SetInlineBuiltinFlag(Interpolation);
+  %SetInlineBuiltinFlag(MathSinInterpolation);
+  %SetInlineBuiltinFlag(MathCosInterpolation);
+
+  InitTrigonometricFunctions = function() {
+    table_sin = new global.Float64Array(samples + 2);
+    table_cos_interval = new global.Float64Array(samples + 2);
+    %PopulateTrigonometricTable(table_sin, table_cos_interval, samples);
+    MathSinImpl = MathSinInterpolation;
+    MathCosImpl = MathCosInterpolation;
+  }
+}
+
+SetupTrigonometricFunctions();
 
 
 // -------------------------------------------------------------------
 
 function SetUpMath() {
   %CheckIsBootstrapping();
+
+  %SetPrototype($Math, $Object.prototype);
+  %SetProperty(global, "Math", $Math, DONT_ENUM);
+  %FunctionSetInstanceClassName(MathConstructor, 'Math');
+
   // Set up math constants.
   // ECMA-262, section 15.8.1.1.
   %OptimizeObjectForAddingMultipleProperties($Math, 8);
@@ -282,8 +358,13 @@ function SetUpMath() {
     "atan2", MathAtan2,
     "pow", MathPow,
     "max", MathMax,
-    "min", MathMin
+    "min", MathMin,
+    "imul", MathImul
   ));
+
+  %SetInlineBuiltinFlag(MathSin);
+  %SetInlineBuiltinFlag(MathCos);
+  %SetInlineBuiltinFlag(MathTan);
 }
 
 SetUpMath();

@@ -27,7 +27,7 @@
 
 #include "v8.h"
 
-#if defined(V8_TARGET_ARCH_X64)
+#if V8_TARGET_ARCH_X64
 
 #include "assembler.h"
 #include "codegen.h"
@@ -48,11 +48,10 @@ bool BreakLocationIterator::IsDebugBreakAtReturn()  {
 // CodeGenerator::VisitReturnStatement and VirtualFrame::Exit in codegen-x64.cc
 // for the precise return instructions sequence.
 void BreakLocationIterator::SetDebugBreakAtReturn()  {
-  ASSERT(Assembler::kJSReturnSequenceLength >=
-         Assembler::kCallInstructionLength);
+  ASSERT(Assembler::kJSReturnSequenceLength >= Assembler::kCallSequenceLength);
   rinfo()->PatchCodeWithCall(
-      Isolate::Current()->debug()->debug_break_return()->entry(),
-      Assembler::kJSReturnSequenceLength - Assembler::kCallInstructionLength);
+      debug_info_->GetIsolate()->debug()->debug_break_return()->entry(),
+      Assembler::kJSReturnSequenceLength - Assembler::kCallSequenceLength);
 }
 
 
@@ -81,8 +80,8 @@ bool BreakLocationIterator::IsDebugBreakAtSlot() {
 void BreakLocationIterator::SetDebugBreakAtSlot() {
   ASSERT(IsDebugBreakSlot());
   rinfo()->PatchCodeWithCall(
-      Isolate::Current()->debug()->debug_break_slot()->entry(),
-      Assembler::kDebugBreakSlotLength - Assembler::kCallInstructionLength);
+      debug_info_->GetIsolate()->debug()->debug_break_slot()->entry(),
+      Assembler::kDebugBreakSlotLength - Assembler::kCallSequenceLength);
 }
 
 
@@ -124,14 +123,8 @@ static void Generate_DebugBreakCallHelper(MacroAssembler* masm,
       if ((object_regs & (1 << r)) != 0) {
         __ push(reg);
       }
-      // Store the 64-bit value as two smis.
       if ((non_object_regs & (1 << r)) != 0) {
-        __ movq(kScratchRegister, reg);
-        __ Integer32ToSmi(reg, reg);
-        __ push(reg);
-        __ sar(kScratchRegister, Immediate(32));
-        __ Integer32ToSmi(kScratchRegister, kScratchRegister);
-        __ push(kScratchRegister);
+        __ PushInt64AsTwoSmis(reg);
       }
     }
 
@@ -139,7 +132,7 @@ static void Generate_DebugBreakCallHelper(MacroAssembler* masm,
     __ RecordComment("// Calling from debug break to runtime - come in - over");
 #endif
     __ Set(rax, 0);  // No arguments (argc == 0).
-    __ movq(rbx, ExternalReference::debug_break(masm->isolate()));
+    __ Move(rbx, ExternalReference::debug_break(masm->isolate()));
 
     CEntryStub ceb(1);
     __ CallStub(&ceb);
@@ -156,12 +149,7 @@ static void Generate_DebugBreakCallHelper(MacroAssembler* masm,
       }
       // Reconstruct the 64-bit value from two smis.
       if ((non_object_regs & (1 << r)) != 0) {
-        __ pop(kScratchRegister);
-        __ SmiToInteger32(kScratchRegister, kScratchRegister);
-        __ shl(kScratchRegister, Immediate(32));
-        __ pop(reg);
-        __ SmiToInteger32(reg, reg);
-        __ or_(reg, kScratchRegister);
+        __ PopInt64AsTwoSmis(reg);
       }
     }
 
@@ -184,7 +172,7 @@ static void Generate_DebugBreakCallHelper(MacroAssembler* masm,
   // overwritten by the address of DebugBreakXXX.
   ExternalReference after_break_target =
       ExternalReference(Debug_Address::AfterBreakTarget(), masm->isolate());
-  __ movq(kScratchRegister, after_break_target);
+  __ Move(kScratchRegister, after_break_target);
   __ jmp(Operand(kScratchRegister, 0));
 }
 
@@ -230,6 +218,15 @@ void Debug::GenerateKeyedStoreICDebugBreak(MacroAssembler* masm) {
   // -----------------------------------
   Generate_DebugBreakCallHelper(
       masm, rax.bit() | rcx.bit() | rdx.bit(), 0, false);
+}
+
+
+void Debug::GenerateCompareNilICDebugBreak(MacroAssembler* masm) {
+  // Register state for CompareNil IC
+  // ----------- S t a t e -------------
+  //  -- rax    : value
+  // -----------------------------------
+  Generate_DebugBreakCallHelper(masm, rax.bit(), 0, false);
 }
 
 
@@ -322,7 +319,7 @@ void Debug::GenerateFrameDropperLiveEdit(MacroAssembler* masm) {
   ExternalReference restarter_frame_function_slot =
       ExternalReference(Debug_Address::RestarterFrameFunctionPointer(),
                         masm->isolate());
-  __ movq(rax, restarter_frame_function_slot);
+  __ Move(rax, restarter_frame_function_slot);
   __ movq(Operand(rax, 0), Immediate(0));
 
   // We do not know our frame height, but set rsp based on rbp.

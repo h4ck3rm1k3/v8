@@ -26,10 +26,11 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 {
-  'includes': ['../../build/common.gypi'],
   'variables': {
+    'v8_code': 1,
     'generated_file': '<(SHARED_INTERMEDIATE_DIR)/resources.cc',
   },
+  'includes': ['../../build/toolchain.gypi', '../../build/features.gypi'],
   'targets': [
     {
       'target_name': 'cctest',
@@ -54,11 +55,15 @@
         'test-bignum-dtoa.cc',
         'test-circular-queue.cc',
         'test-compiler.cc',
+        'test-condition-variable.cc',
+        'test-constantpool.cc',
         'test-conversions.cc',
+        'test-cpu.cc',
         'test-cpu-profiler.cc',
         'test-dataflow.cc',
         'test-date.cc',
         'test-debug.cc',
+        'test-declarative-accessors.cc',
         'test-decls.cc',
         'test-deoptimization.cc',
         'test-dictionary.cc',
@@ -69,45 +74,64 @@
         'test-fixed-dtoa.cc',
         'test-flags.cc',
         'test-func-name-inference.cc',
+        'test-global-handles.cc',
+        'test-global-object.cc',
         'test-hashing.cc',
         'test-hashmap.cc',
         'test-heap.cc',
         'test-heap-profiler.cc',
         'test-list.cc',
         'test-liveedit.cc',
-        'test-lock.cc',
         'test-lockers.cc',
         'test-log.cc',
         'test-mark-compact.cc',
+        'test-mutex.cc',
+        'test-object-observe.cc',
         'test-parsing.cc',
+        'test-platform.cc',
         'test-platform-tls.cc',
         'test-profile-generator.cc',
-        'test-random.cc',
+        'test-random-number-generator.cc',
         'test-regexp.cc',
         'test-reloc-info.cc',
+        'test-representation.cc',
+        'test-semaphore.cc',
         'test-serialize.cc',
-        'test-sockets.cc',
+        'test-socket.cc',
         'test-spaces.cc',
         'test-strings.cc',
+        'test-symbols.cc',
         'test-strtod.cc',
         'test-thread-termination.cc',
         'test-threads.cc',
+        'test-time.cc',
+        'test-types.cc',
         'test-unbound-queue.cc',
+        'test-unique.cc',
         'test-utils.cc',
         'test-version.cc',
-        'test-weakmaps.cc'
+        'test-weakmaps.cc',
+        'test-weaksets.cc',
+        'test-weaktypedarrays.cc'
       ],
       'conditions': [
         ['v8_target_arch=="ia32"', {
           'sources': [
             'test-assembler-ia32.cc',
+            'test-code-stubs.cc',
+            'test-code-stubs-ia32.cc',
+            'test-cpu-ia32.cc',
             'test-disasm-ia32.cc',
+            'test-macro-assembler-ia32.cc',
             'test-log-stack-tracer.cc'
           ],
         }],
         ['v8_target_arch=="x64"', {
           'sources': [
             'test-assembler-x64.cc',
+            'test-code-stubs.cc',
+            'test-code-stubs-x64.cc',
+            'test-cpu-x64.cc',
             'test-macro-assembler-x64.cc',
             'test-log-stack-tracer.cc'
           ],
@@ -115,13 +139,17 @@
         ['v8_target_arch=="arm"', {
           'sources': [
             'test-assembler-arm.cc',
-            'test-disasm-arm.cc'
+            'test-code-stubs.cc',
+            'test-code-stubs-arm.cc',
+            'test-disasm-arm.cc',
+            'test-macro-assembler-arm.cc'
           ],
         }],
         ['v8_target_arch=="mipsel"', {
           'sources': [
             'test-assembler-mips.cc',
             'test-disasm-mips.cc',
+            'test-macro-assembler-mips.cc'
           ],
         }],
         [ 'OS=="linux"', {
@@ -153,7 +181,9 @@
               'dependencies': ['../../tools/gyp/v8.gyp:v8_snapshot'],
             },
             {
-              'dependencies': ['../../tools/gyp/v8.gyp:v8_nosnapshot'],
+              'dependencies': [
+                '../../tools/gyp/v8.gyp:v8_nosnapshot.<(v8_target_arch)',
+              ],
             }],
           ],
         }, {

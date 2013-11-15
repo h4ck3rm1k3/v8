@@ -43,7 +43,7 @@ class CompilationInfo;
 class CodeGenerator {
  public:
   // Printing of AST, etc. as requested by flags.
-  static void MakeCodePrologue(CompilationInfo* info);
+  static void MakeCodePrologue(CompilationInfo* info, const char* kind);
 
   // Allocate and install the code.
   static Handle<Code> MakeCodeEpilogue(MacroAssembler* masm,
@@ -53,7 +53,7 @@ class CodeGenerator {
   // Print the code after compiling it.
   static void PrintCode(Handle<Code> code, CompilationInfo* info);
 
-  static bool ShouldGenerateLog(Expression* type);
+  static bool ShouldGenerateLog(Isolate* isolate, Expression* type);
 
   static bool RecordPositions(MacroAssembler* masm,
                               int pos,
@@ -86,6 +86,20 @@ class StringCharLoadGenerator : public AllStatic {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(StringCharLoadGenerator);
+};
+
+
+class MathExpGenerator : public AllStatic {
+ public:
+  static void EmitMathExp(MacroAssembler* masm,
+                          XMMRegister input,
+                          XMMRegister result,
+                          XMMRegister double_scratch,
+                          Register temp1,
+                          Register temp2);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MathExpGenerator);
 };
 
 } }  // namespace v8::internal

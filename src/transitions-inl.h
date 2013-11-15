@@ -57,54 +57,8 @@ TransitionArray* TransitionArray::cast(Object* object) {
 }
 
 
-Map* TransitionArray::elements_transition() {
-  Object* transition_map = get(kElementsTransitionIndex);
-  return Map::cast(transition_map);
-}
-
-
-void TransitionArray::ClearElementsTransition() {
-  WRITE_FIELD(this, kElementsTransitionOffset, Smi::FromInt(0));
-}
-
-
 bool TransitionArray::HasElementsTransition() {
-  return IsFullTransitionArray() &&
-      get(kElementsTransitionIndex) != Smi::FromInt(0);
-}
-
-
-void TransitionArray::set_elements_transition(Map* transition_map,
-                                              WriteBarrierMode mode) {
-  ASSERT(IsFullTransitionArray());
-  Heap* heap = GetHeap();
-  WRITE_FIELD(this, kElementsTransitionOffset, transition_map);
-  CONDITIONAL_WRITE_BARRIER(
-      heap, this, kElementsTransitionOffset, transition_map, mode);
-}
-
-
-DescriptorArray* TransitionArray::descriptors() {
-  return DescriptorArray::cast(descriptors_pointer()->value());
-}
-
-
-void TransitionArray::set_descriptors(DescriptorArray* descriptors) {
-  ASSERT(!this->descriptors()->IsDescriptorArray() ||
-         descriptors->number_of_descriptors() == 0 ||
-         descriptors->HasEnumCache() ||
-         !this->descriptors()->HasEnumCache());
-  descriptors_pointer()->set_value(descriptors);
-}
-
-
-JSGlobalPropertyCell* TransitionArray::descriptors_pointer() {
-  return JSGlobalPropertyCell::cast(get(kDescriptorsPointerIndex));
-}
-
-
-void TransitionArray::set_descriptors_pointer(JSGlobalPropertyCell* pointer) {
-  set(kDescriptorsPointerIndex, pointer);
+  return Search(GetHeap()->elements_transition_symbol()) != kNotFound;
 }
 
 
@@ -167,19 +121,19 @@ Object** TransitionArray::GetKeySlot(int transition_number) {
 }
 
 
-String* TransitionArray::GetKey(int transition_number) {
+Name* TransitionArray::GetKey(int transition_number) {
   if (IsSimpleTransition()) {
     Map* target = GetTarget(kSimpleTransitionIndex);
     int descriptor = target->LastAdded();
-    String* key = target->instance_descriptors()->GetKey(descriptor);
+    Name* key = target->instance_descriptors()->GetKey(descriptor);
     return key;
   }
   ASSERT(transition_number < number_of_transitions());
-  return String::cast(get(ToKeyIndex(transition_number)));
+  return Name::cast(get(ToKeyIndex(transition_number)));
 }
 
 
-void TransitionArray::SetKey(int transition_number, String* key) {
+void TransitionArray::SetKey(int transition_number, Name* key) {
   ASSERT(!IsSimpleTransition());
   ASSERT(transition_number < number_of_transitions());
   set(ToKeyIndex(transition_number), key);
@@ -214,13 +168,18 @@ PropertyDetails TransitionArray::GetTargetDetails(int transition_number) {
 }
 
 
-int TransitionArray::Search(String* name) {
+int TransitionArray::Search(Name* name) {
+  if (IsSimpleTransition()) {
+    Name* key = GetKey(kSimpleTransitionIndex);
+    if (key->Equals(name)) return kSimpleTransitionIndex;
+    return kNotFound;
+  }
   return internal::Search<ALL_ENTRIES>(this, name);
 }
 
 
 void TransitionArray::NoIncrementalWriteBarrierSet(int transition_number,
-                                                   String* key,
+                                                   Name* key,
                                                    Map* target) {
   FixedArray::NoIncrementalWriteBarrierSet(
       this, ToKeyIndex(transition_number), key);

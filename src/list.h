@@ -84,7 +84,7 @@ class List {
   // backing store (e.g. Add).
   inline T& operator[](int i) const {
     ASSERT(0 <= i);
-    ASSERT(i < length_);
+    SLOW_ASSERT(i < length_);
     return data_[i];
   }
   inline T& at(int i) const { return operator[](i); }
@@ -114,6 +114,9 @@ class List {
   // Inserts the element at the specific index.
   void InsertAt(int index, const T& element,
                 AllocationPolicy allocator = AllocationPolicy());
+
+  // Overwrites the element at the specific index.
+  void Set(int index, const T& element);
 
   // Added 'count' elements with the value 'value' and returns a
   // vector that allows access to the elements.  The vector is valid
@@ -148,6 +151,9 @@ class List {
 
   // Drop the last 'count' elements from the list.
   INLINE(void RewindBy(int count)) { Rewind(length_ - count); }
+
+  // Halve the capacity if fill level is less than a quarter.
+  INLINE(void Trim(AllocationPolicy allocator = AllocationPolicy()));
 
   bool Contains(const T& elm) const;
   int CountOccurrences(const T& elm, int start, int end) const;
